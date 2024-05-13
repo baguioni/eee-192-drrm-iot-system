@@ -29,11 +29,7 @@ extern "C" {
 
 ////////////////////////////////////////////////////////////////////////////
 
-/**
- * Structure describing a received event (or byte) from the USART
- *
- * The reason we don't deal with
- */
+/// Structure describing a received event (or byte) from the USART
 struct usart_rx_event {
 
 	/**
@@ -99,6 +95,7 @@ struct usart_rx_event {
  * \return	TRUE if an event was returned, FALSE if not
  */
 bool usart2_rx_get_event(struct usart_rx_event *evt);
+bool usart6_rx_get_event(struct usart_rx_event *evt);
 
 ////////////////////////////////////////////////////////////////////////////
 
@@ -123,6 +120,7 @@ void usart2_tx_send_break(void);
  * WARNING: The buffer must NOT be modified while the transfer is taking place!
  */
 bool usart2_tx_send(const char *buf, unsigned int len);
+bool usart6_tx_send(const char *buf, unsigned int len);
 
 /**
  * Check if the transmitter is currently busy
@@ -130,4 +128,6 @@ bool usart2_tx_send(const char *buf, unsigned int len);
  * \return	TRUE if the transmitter is busy, FALSE if not
  */
 bool usart2_tx_is_busy(void);
+bool usart6_tx_is_busy(void);
+
 #endif // EEE158_USART_HDR_

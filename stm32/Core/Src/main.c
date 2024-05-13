@@ -36,12 +36,21 @@ char* createJSONString(uint16_t value) {
     return jsonString;
 }
 
-uint16_t adc_value = 0x0000;
-uint16_t dequeued_value;
-
 int main(void) {
+	// 
+	/*
+		Initializes usart6 as well
+
+		usart6 - esp32
+		usart2 - pc for debugging
+	*/
 	usart2_init();
 	ADC_init();
+
+	usart2_tx_send("STM32 starting operations ...", sizeof("STM32 starting operations ..."));
+
+	uint16_t adc_value = 0x0000;
+	uint16_t dequeued_value;
 
     // Initialize a queue
 	Queue* queue = createQueue();
@@ -49,6 +58,7 @@ int main(void) {
 	/* Loop forever */
 	while (1) {
 		delay_ms(SENSORDELAY);
+
 
 		// ADC related functionality
 		ADC_enable();
@@ -60,11 +70,14 @@ int main(void) {
 		enqueue(queue, adc_value);
 
 		// Send to serial monitor
-	    if (!usart2_tx_is_busy() && !isEmpty(queue)) {
+	    if (!usart6_tx_is_busy() && !isEmpty(queue)) {
 	    	DequeueResult result = dequeue(queue, &dequeued_value);
 
 	        if (result == DequeueResult_Success) {
 		    	char* jsonDatapoint = createJSONString(dequeued_value);
+				usart6_tx_send(jsonDatapoint, strlen(jsonDatapoint));
+
+				// Send to pc for debugging
 				usart2_tx_send(jsonDatapoint, strlen(jsonDatapoint));
 			    // Free dynamically allocated memory
 			    free(jsonDatapoint);

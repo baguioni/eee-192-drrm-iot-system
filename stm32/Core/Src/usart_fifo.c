@@ -1,5 +1,5 @@
 /**
- * @file	usart.c
+ * @file	usart_fifo.c
  * @brief	Library code: Universal Synchronous/Asynchronous
  * 		Receiver/Transmitter
  *
@@ -45,6 +45,9 @@
 static volatile const char   *fifo_tx_buf = 0;
 static volatile unsigned int  fifo_tx_len = 0;
 
+static volatile const char   *fifo_tx_buf_6 = 0;
+static volatile unsigned int  fifo_tx_len_6 = 0;
+
 /*
  * Handler for interrupts from USART2
  *
@@ -57,6 +60,12 @@ static volatile unsigned int idx_rxf_1 = 0;
 static volatile unsigned int idx_rxf_2 = 0;
 static volatile unsigned int ctr_rxf = 0;
 static volatile struct usart_rx_event fifo_rx[RXFIFO_LEN];
+
+static volatile unsigned int idx_rxf_1_6 = 0;
+static volatile unsigned int idx_rxf_2_6 = 0;
+static volatile unsigned int ctr_rxf_6 = 0;
+static volatile struct usart_rx_event fifo_rx_6[RXFIFO_LEN];
+
 void USART2_IRQHandler(void)
 {
 	/*
@@ -170,14 +179,133 @@ void USART2_IRQHandler(void)
 	}
 }
 
-// Initialize USART2
+void USART6_IRQHandler(void)
+{
+	/*
+	 * Normally, there shouldn't be much code within an IRQ handler.
+	 * However, the microcontroller family has a single IRQ handler for
+	 * *all* USART2 events. Hence, some processing MUST be made here.
+	 */
+
+	/*
+	 * Notes:
+	 * [1] SR and DR must both be read to clear any interrupt status.
+	 * [2] SR must be read *before* DR; otherwise, certain events would be
+	 *     lost.
+	 */
+	unsigned int val_sr_6 = USART6->SR;
+	unsigned int val_dr_6 = USART6->DR;
+	struct usart_rx_event evt_6 = {
+		.valid = 0
+	};
+
+	/*
+	 * RX is more-urgent than TX, because we could lose data if we don't
+	 * act fast enough. Thus, process it first.
+	 */
+	if (val_sr_6 & (1 << 5)) {
+		/*
+		 * There is an event for FIFO (RXNE is set). Process it and its
+		 * allies.
+		 */
+		evt_6.c     = (val_dr_6 & 0xff);
+		evt_6.valid = 1;
+		evt_6.has_data = 1;
+
+		// Parity errors can only be detected here.
+		if (val_sr_6 & (1 << 1)) {
+			/*
+			 * Framing error detected (FE bit is set)
+			 *
+			 * Special case: If DR is zero, we assume a break and
+			 * thus no further interrupts will occur on reception
+			 * until IDLE is detected (which has its own interrupt
+			 * line).
+			 */
+			if (val_dr_6 == 0) {
+				evt_6.is_break = 1;
+				evt_6.has_data = 0;
+				USART6->CR1 &= ~(1 << 5);
+			} else {
+				// Other Frame error
+				evt_6.err_frame = 1;
+			}
+		}
+		if (val_sr_6 & (1 << 0)) {
+			// Parity error detected (PE bit is set)
+			evt_6.err_parity = 1;
+			evt_6.err_frame = 1;
+			evt_6.has_data = 0;
+		}
+	}
+
+	/*
+	 * Check for any other RX errors/events that may have been detected by
+	 * the peripheral.
+	 */
+	if (val_sr_6 & (1 << 4)) {
+		/*
+		 * IDLE line
+		 *
+		 * Re-enable the RXNE interrupt.
+		 */
+		evt_6.is_idle  = 1;
+		evt_6.valid = 1;
+		USART6->CR1 |= (1 << 5);
+	}
+
+	// Put it into the RX FIFO queue
+	if (evt_6.valid) {
+		fifo_rx_6[idx_rxf_1_6++] = evt_6;
+		if (idx_rxf_1_6 >= RXFIFO_LEN)
+			idx_rxf_1_6 = 0;
+		if (ctr_rxf_6 < RXFIFO_LEN)
+			++ctr_rxf_6;
+	}
+
+	/////////////////////////////////////////////////////////////////////
+
+	/*
+	 * The interrupt may have been generated as well for transmit events.
+	 * Send out the next byte in the queue, if any.
+	 */
+	if (val_sr_6 & (1 << 7)) {
+		/*
+		 * Transmit buffer empty. If there are any pending characters,
+		 * load them into the queue.
+		 *
+		 * Because TXE is only cleared by writing to the USART2_DR
+		 * register, the send routine just fills up the FIFO and
+		 * enables TXEIE, which causes this routine to pick up the
+		 * byte/s.
+		 */
+		if (fifo_tx_len_6 > 0) {
+			// Queue not empty
+			USART6->DR = *(fifo_tx_buf_6++);
+			--fifo_tx_len_6;
+		} else {
+			// Queue empty; disable the TXE event
+			USART6->CR1 &= ~(1 << 7);
+			fifo_tx_len_6 = 0;
+			fifo_tx_buf_6 = 0;
+		}
+	}
+}
+
+////////////////////////////////////////////////////////////////////////////
+
+// Initialize USART2 and 6
 void usart2_init(void)
 {
 	// Initialize the variables.
 	idx_rxf_1 = 0;
 	idx_rxf_2 = 0;
 	ctr_rxf = 0;
+	idx_rxf_1_6 = 0;
+	idx_rxf_2_6 = 0;
+	ctr_rxf_6 = 0;
 	memset(fifo_rx, 0, sizeof(fifo_rx));
+	memset(fifo_rx_6, 0, sizeof(fifo_rx_6));
 
 	// Configure the GPIO first before configuring the USART.
 
@@ -187,6 +315,11 @@ void usart2_init(void)
 	GPIOA->MODER |=  (0b10 << 4);	// ... then set it as alternate function.
 	GPIOA->MODER &= ~(0b11 << 6);	// Set PA3 as input...
 	GPIOA->MODER |=  (0b10 << 6);	// ... then set it as alternate function.
+
+	GPIOA->MODER &= ~(0b11 << 22);	// Set PA11 as input...
+	GPIOA->MODER |=  (0b10 << 22);	// ... then set it as alternate function.
+	GPIOA->MODER &= ~(0b11 << 24);	// Set PA12 as input...
+	GPIOA->MODER |=  (0b10 << 24);	// ... then set it as alternate function.
 
 	/*
 	 * PA2 is used for TX output of the USART. As a result, we need to do
@@ -198,7 +331,8 @@ void usart2_init(void)
 	 */
 	GPIOA->OTYPER &= ~(1 << 2);	// PA2 = push-pull output
 	GPIOA->OSPEEDR |= (0b11 << 4);	// High-speed mode
-
+	GPIOA->OTYPER &= ~(1 << 11);	// PA11 = push-pull output
+	GPIOA->OSPEEDR |= (0b11 << 22);	// High-speed mode
 	/*
 	 * PA3 is used for RX input of the USART. To enable break detection
 	 * (that is, the remote peer is disconnected), activate the pull-down.
@@ -208,6 +342,8 @@ void usart2_init(void)
 	 */
 	GPIOA->PUPDR &= ~(0b11 << 6);
 	GPIOA->PUPDR |=  (0b10 << 6);
+	GPIOA->PUPDR &= ~(0b11 << 24);
+	GPIOA->PUPDR |=  (0b10 << 24);
 
 	/*
 	 * Set the AFR values:
@@ -218,18 +354,28 @@ void usart2_init(void)
 	GPIOA->AFR[0] &= ~(0x0000FF00);
 	GPIOA->AFR[0] |=  (0x00007700);
 
+	GPIOA->AFR[1] &= ~(0x000FF000);
+	GPIOA->AFR[1] |=  (0x00088000);
+
 	/////////////////////////////////////////////////////////////////////
 
 	RCC->APB1ENR  |= (1 << 17);	// Enable USART2 peripheral
 	RCC->APB1RSTR |= (1 << 17);	// Reset the whole peripheral
 	RCC->APB1RSTR &= ~(1 << 17);
 
+	RCC->APB2ENR  |= (1 << 5);	// Enable USART2 peripheral
+	RCC->APB2RSTR |= (1 << 5);	// Reset the whole peripheral
+	RCC->APB2RSTR &= ~(1 << 5);
+
 	/*
 	 * Disable both transmitters and receivers for now, while
-	 * (re-)configuration is in progress.
+	 * (re-)configuration is in progress. (but enable USART)
 	 */
 	USART2->CR1 &= ~(0b11 << 2);
 	USART2->CR1 |=  (1 << 13);
+
+	USART6->CR1 &= ~(0b11 << 2);
+	USART6->CR1 |=  (1 << 13);
 
 	/*
 	 * In USARTs, the baud rate and bit rate are, by convention, one and
@@ -261,40 +407,51 @@ void usart2_init(void)
 	 * above), the fraction base is either 1/16 (cleared) or 1/8 (set).
 	 *
 	 * For example, suppose we have f_clk,usart = 16MHz and a desired baud
-	 * rate of 38.4 kBaud. With OVER8=0, the numerical divisor would be
+	 * rate of 57.6 kBaud. With OVER8=0, the numerical divisor would be
 	 *
-	 * div = (16e6) / (8 * 2 * 38400) = 26.04166667
+	 * div = (16e6) / (8 * 2 * 57.6) = 17.36111
 	 *
 	 * Since the fraction base is 1/16 = 0.0625, which is not an integer
 	 * multiplier/divisor of 0.04166667, we will not be able to
 	 * exactly represent this into USARTDIV. The two nearest values are
 	 * 26.0000 and 26.0625, with the latter being nearer. Thus, our
-	 * effective divisor is (26 + 1/16); its encoding in USARTDIV would be
+	 * effective divisor is (17 + 6/16); its encoding in USARTDIV would be
 	 *
-	 * 0000 0001 1010 _ 0001 = 0x01A1
+	 * 0000 0001 0001 _ 0110 = 0x0116
 	 *
 	 * This brings us to one important aspect of USARTs -- all receivers
 	 * must be able to handle some tolerances, which is affected by the
 	 * filtering provided by OVER8. For the example above, the actual baud
 	 * rate with the selected divisor would be
 	 *
-	 * baud = (16e6) / (8 * 2 * 26.0625) = 38369.30456
+	 * baud = (16e6) / (8 * 2 * 17.375) = 57,553.95683
 	 *
-	 * which represents a 0.08% error. If we used 26 for USARTDIV, the
-	 * resulting baud rate would be 38461.53846, which represents a -0.16%
+	 * which represents a 0.08% error. If we used 17 for USARTDIV, the
+	 * resulting baud rate would be 58823.52941, which represents a -2.12%
 	 * error. Not bad, but still higher. These mismatches have worse
 	 * effects at higher speeds, which ultimately limits the baud rate of
 	 * simple UARTs to the hundred-kBaud range; though there are some
 	 * that can reach 1.5Mbaud. Above such speeds, external clock
 	 * synchronization must be used.
 	 */
-	USART2->BRR &= ~(0x0000FFFF);
-	USART2->BRR |=  (0x00000116); // bitrate = 57.6kbps
-	USART2->CR1 &= ~(1 << 15);		// OVER8 = 0
-	USART2->CR2 &= ~(0b11 << 12);		// One (1) stop bit
+
+	USART2->BRR &= ~(0x0000FFFF);	// Clear all USARTDIV bits
+	USART2->BRR |=  (0x00000116);	// Set USARTDIV to 0000 0001 0001 0110 = 17.375
+	USART2->CR1 |= (1 << 15);		// OVER8 = 1
+	USART2->CR2 &= ~(0b11 << 12);	// One (1) stop bit
 	USART2->CR1 &= ~(1 << 10);		// No parity
 
-	/*
+	USART6->BRR &= ~(0x0000FFFF);	// Clear all USARTDIV bits
+	USART6->BRR |=  (0x00000116);	// Set USARTDIV to 0000 0001 0001 0110 = 17.375
+	USART6->CR1 |= (1 << 15);		// OVER8 = 1
+	USART6->CR2 &= ~(0b11 << 12);	// One (1) stop bit
+	USART6->CR1 &= ~(1 << 10);		// No parity
+/*
+	USART2->BRR = 0x0683;  // 9600 at 16MHz
+	USART2->CR1 |= (1<<3);
+	USART2->CR1 |= (1<<13);
+
+
 	 * USARTs can also operate in synchronous mode, where data signals are
 	 * synchronized with a separate external clock signal. Because the
 	 * receiver no longer has to recover clocking information from the
@@ -305,6 +462,7 @@ void usart2_init(void)
 	 * must be disabled (CLKEN=0).
 	 */
 	USART2->CR2 &= ~(1 << 11);
+	USART6->CR2 &= ~(1 << 11);
 
 	/*
 	 * A feature of modern microcontroller USARTs is multiprocessor
@@ -322,6 +480,7 @@ void usart2_init(void)
 	 * In our configuration, no parity is used; hence, M must be cleared.
 	 */
 	USART2->CR1 &= ~(1 << 12);
+	USART6->CR1 &= ~(1 << 12);
 
 	/*
 	 * To facilitate higher speeds, modern USARTs support the use of
@@ -332,6 +491,7 @@ void usart2_init(void)
 	 * This system uses no such flow control; thus, disable them both.
 	 */
 	USART2->CR3 &= ~(0b11 << 8);
+	USART6->CR3 &= ~(0b11 << 8);
 
 	//////////////////////////////////////////////////////////////////////
 
@@ -354,9 +514,9 @@ void usart2_init(void)
 	 * 	- External events
 	 * 	- Timer events
 	 * 	- Communications events
-	 */
-	NVIC->IP[38] = (3 << 4);
-
+	 */							//reference manual table 37
+	NVIC->IP[38] = (3 << 4); // pos 38 pri 45 add 00D8
+	NVIC->IP[71] = (3 << 4); // pos 71 pri 78 add 015C
 	/*
 	 * Per the STM32F4 architecture datasheet, the NVIC ISER/ICER registers
 	 * each contain 32 interrupt indices; 0-31 for I{S/C}ER[0], 32-63 for
@@ -369,12 +529,14 @@ void usart2_init(void)
 	 * Position 38 in the NVIC table would be at I{S/C}ER[1][6:6].
 	 */
 	NVIC->ISER[1] = (1 << 6);	// Note: Writing '0' is a no-op
+	NVIC->ISER[71 >> 5] = (1 << (71 % 32));	// Note: Writing '0' is a no-o2
 
 	/*
 	 * THESE NEED TO BE DONE LAST. Enable the interrupts, followed by the
 	 * actual receiver and transmitter duo.
 	 */
 	USART2->CR1 |= (0b1111 << 2);
+	USART6->CR1 |= (0b1111 << 2);
 	return;
 }
 
@@ -422,12 +584,31 @@ bool usart2_rx_get_event(struct usart_rx_event *evt)
 		return false;
 	}
 }
+bool usart6_rx_get_event(struct usart_rx_event *evt_6)
+{
+	if (ctr_rxf_6 > 0 && evt_6 != 0) {
+		*evt_6 = fifo_rx_6[idx_rxf_2_6++];
+		--ctr_rxf_6;
+		if (idx_rxf_2_6 >= RXFIFO_LEN)
+			idx_rxf_2_6 = 0;
+		return true;
+	} else {
+		return false;
+	}
+}
+
 
 // Enqueue a buffer to be transmitted
 bool usart2_tx_is_busy(void)
 {
 	return (fifo_tx_buf != 0 || fifo_tx_len > 0);
 }
+
+bool usart6_tx_is_busy(void)
+{
+	return (fifo_tx_buf_6 != 0 || fifo_tx_len_6 > 0);
+}
+
 bool usart2_tx_send(const char *buf, unsigned int len)
 {
 	if (fifo_tx_buf != 0 || fifo_tx_len > 0)
@@ -439,19 +620,13 @@ bool usart2_tx_send(const char *buf, unsigned int len)
 	return true;
 }
 
-// Enqueue a buffer to be transmitted
-bool usart1_tx_is_busy(void)
+bool usart6_tx_send(const char *buf, unsigned int len)
 {
-	return (fifo_tx_buf != 0 || fifo_tx_len > 0);
-}
-bool usart1_tx_send(const char *buf, unsigned int len)
-{
-	if (fifo_tx_buf != 0 || fifo_tx_len > 0)
+	if (fifo_tx_buf_6 != 0 || fifo_tx_len_6 > 0)
 		return false;
 
-	fifo_tx_buf = buf;
-	fifo_tx_len = len;
-	USART1->CR1 |= (1 << 7);
+	fifo_tx_buf_6 = buf;
+	fifo_tx_len_6 = len;
+	USART6->CR1 |= (1 << 7);
 	return true;
 }
-
