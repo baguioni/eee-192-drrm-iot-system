@@ -1,6 +1,0 @@
-../Core/Src/adc.c:7:6:ADC_init	4	static
-../Core/Src/adc.c:46:6:ADC_enable	8	static
-../Core/Src/adc.c:51:6:ADC_startconv	4	static
-../Core/Src/adc.c:55:6:ADC_waitconv	4	static
-../Core/Src/adc.c:62:5:ADC_GetVal	4	static
-../Core/Src/adc.c:66:6:delay_ms	24	static

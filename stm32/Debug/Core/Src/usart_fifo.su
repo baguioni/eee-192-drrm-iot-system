@@ -1,8 +1,0 @@
-../Core/Src/usart_fifo.c:60:6:USART2_IRQHandler	24	static
-../Core/Src/usart_fifo.c:174:6:usart2_init	8	static
-../Core/Src/usart_fifo.c:382:6:usart2_exit	4	static
-../Core/Src/usart_fifo.c:413:6:usart2_rx_get_event	16	static
-../Core/Src/usart_fifo.c:427:6:usart2_tx_is_busy	4	static
-../Core/Src/usart_fifo.c:431:6:usart2_tx_send	16	static
-../Core/Src/usart_fifo.c:443:6:usart1_tx_is_busy	4	static
-../Core/Src/usart_fifo.c:447:6:usart1_tx_send	16	static

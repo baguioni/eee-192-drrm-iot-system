@@ -1,8 +1,0 @@
-../Core/Src/usart_fifo.c:60:6:USART2_IRQHandler	11
-../Core/Src/usart_fifo.c:174:6:usart2_init	1
-../Core/Src/usart_fifo.c:382:6:usart2_exit	2
-../Core/Src/usart_fifo.c:413:6:usart2_rx_get_event	4
-../Core/Src/usart_fifo.c:427:6:usart2_tx_is_busy	3
-../Core/Src/usart_fifo.c:431:6:usart2_tx_send	3
-../Core/Src/usart_fifo.c:443:6:usart1_tx_is_busy	3
-../Core/Src/usart_fifo.c:447:6:usart1_tx_send	3

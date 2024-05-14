@@ -1,6 +1,0 @@
-../Core/Src/message_queue.c:6:8:createQueue	16	static
-../Core/Src/message_queue.c:13:5:isEmpty	16	static
-../Core/Src/message_queue.c:17:5:isFull	16	static
-../Core/Src/message_queue.c:21:15:enqueue	16	static
-../Core/Src/message_queue.c:36:15:dequeue	16	static
-../Core/Src/message_queue.c:51:10:peek	16	static
