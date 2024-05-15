@@ -2,6 +2,7 @@ const { onRequest } = require("firebase-functions/v2/https");
 const { logger } = require("firebase-functions");
 
 const twilio = require("twilio");
+const TelegramBot = require('node-telegram-bot-api');
 
 const SensorType = {
     Voltage: 0,
@@ -32,26 +33,61 @@ class TwilioService {
     }
 
     async sendSensorData(to, sensorData) {
-        const messageBody = `Sensor Alert - ${Object.keys(SensorType)[sensorData.sensorType]}:\nValue: ${sensorData.value}`;
+        const messageBody = `Sensor Alert - ${Object.keys(SensorType)[sensorData.sensorType]}\nValue: ${sensorData.value}`;
         await this.sendSMS(to, messageBody);
     }
 }
 
+class TelegramService {
+    constructor() {
+        this.apiKey = process.env.TELEGRAM_BOT_API_KEY
+
+        if (!this.apiKey) {
+            throw new Error("Telegram credentials are missing");
+        }
+        
+        this.client = new TelegramBot(this.apiKey, {polling: true});
+    }
+
+    async sendMessage(to, body) {
+        await this.client.sendMessage(to, body)
+    }
+
+    async sendSensorData(to, sensorData) {
+        const messageBody = `Sensor Alert - ${Object.keys(SensorType)[sensorData.sensorType]}\nValue: ${sensorData.value}`;
+        await this.sendMessage(to, messageBody);
+    }
+}
+
 // Function logic
+// Activate twilio during actual deployment
 exports.sensorAlert = onRequest(async (request, response) => {
     const { sensorType, value } = request.body;
 
+    if (!sensorType || ! value) {
+        logger.error("Request is has missing value/s");
+        response.status(400).send("Request is has missing value/s");
+        return;
+    }
+
     logger.info("Received sensor data", { sensorType, value });
-    const twilioService = new TwilioService();
+    // const twilioService = new TwilioService();
+    const telegramService = new TelegramService();
 
     try {
-        await twilioService.sendSensorData("+1234567890", {
-            sensorType: SensorType.Voltage,
-            value: 5
+        // await twilioService.sendSensorData(process.env.TWILIO_RECIPIENT_PHONE_NUMBER, {
+        //     sensorType: sensorType,
+        //     value: value
+        // });
+
+        await telegramService.sendSensorData(process.env.TELEGRAM_CHAT_ID, {
+            sensorType: sensorType,
+            value: value
         });
+
         response.status(200).send("Sensor data received successfully");
     } catch (error) {
-        logger.error("Error sending SMS", error);
-        response.status(500).send("Error sending SMS");
+        logger.error("Error sending notifications", error);
+        response.status(500).send("Error sending notifications");
     }
 });
