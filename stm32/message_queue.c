@@ -18,7 +18,7 @@ int isFull(Queue* queue) {
     return (queue->rear + 1) % MAX_QUEUE_SIZE == queue->front;
 }
 
-EnqueueResult enqueue(Queue* queue, float item) {
+EnqueueResult enqueue(Queue* queue, int item) {
     if (isFull(queue)) {
         // Queue is full.
         return EnqueueResult_Full;
@@ -33,7 +33,7 @@ EnqueueResult enqueue(Queue* queue, float item) {
     return EnqueueResult_Success;
 }
 
-DequeueResult dequeue(Queue* queue, float* item) {
+DequeueResult dequeue(Queue* queue, int* item) {
     if (isEmpty(queue)) {
         // Queue is empty.
         return DequeueResult_Empty;

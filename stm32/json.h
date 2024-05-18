@@ -4,6 +4,6 @@
 #include <stdint.h>
 
 // Function declaration
-char *createJSONString(float value, uint16_t type);
+char *createJSONString(int value, uint16_t type);
 
 #endif /* JSON_CREATOR_H */

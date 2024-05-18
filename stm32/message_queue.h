@@ -28,8 +28,8 @@ typedef struct {
 Queue* createQueue();
 int isEmpty(Queue* queue);
 int isFull(Queue* queue);
-EnqueueResult enqueue(Queue* queue, float item);
-DequeueResult dequeue(Queue* queue, float* item);
+EnqueueResult enqueue(Queue* queue, int item);
+DequeueResult dequeue(Queue* queue, int* item);
 uint16_t peek(Queue* queue);
 
 #endif /* SRC_MESSAGE_QUEUE_H_ */

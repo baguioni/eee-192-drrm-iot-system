@@ -17,7 +17,7 @@
 // STM32 specific values
 // Change as needed. Refer to the message_queue.h file
 #define SENSORTYPE SMOKE
-#define SENSORDELAY 1000
+#define SENSORDELAY 5000
 
 int main(void) {
 	/*
@@ -29,10 +29,12 @@ int main(void) {
 	usart2_init();
 	ADC_init();
 
+	srand(5);
+
 	usart2_tx_send("STM32 starting operations ...", sizeof("STM32 starting operations ..."));
 
-	float adc_value = 0x0000;
-	float dequeued_value;
+	int adc_value = 0;
+	int dequeued_value;
 
     // Initialize a queue
 	Queue* queue = createQueue();
@@ -49,7 +51,6 @@ int main(void) {
 		enqueue(queue, adc_value);
 
 		// Send to serial monitor
-		// Need to add logic to check if wifi module is available
 	    if (!usart6_tx_is_busy() && !isEmpty(queue)) {
 	    	DequeueResult result = dequeue(queue, &dequeued_value);
 

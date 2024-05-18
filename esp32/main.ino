@@ -19,6 +19,15 @@ unsigned long lastTime = 0;
 String thingspeakEndpoint = "https://api.thingspeak.com/update?api_key=";
 String apiKey = "CFBV2ROKPP58IHBL";
 
+/*
+thingspeak fields
+
+    VOLTAGE - 1
+    HUMIDITY - 2
+    TEMPERATURE -3 
+    SMOKE- 4
+*/
+
 void parseJson(const char *jsonString, String &sensorTypeString, String &valueString)
 {
     StaticJsonDocument<128> doc;
@@ -31,7 +40,7 @@ void parseJson(const char *jsonString, String &sensorTypeString, String &valueSt
         int value = doc["value"];
 
         // Convert integers to strings
-        sensorTypeString = String(sensorType);
+        sensorTypeString = String(sensorType + 1)// Plus 1 to match field names in thingspeak;
         valueString = String(value);
     }
     else
@@ -119,12 +128,12 @@ void loop()
     length = uart_read_bytes(uart_num, uart_data, sizeof(uart_data), 100);
     if (length > 0)
     {
-        char *json_string = (char *)uart_data;
+        char *jsonString = (char *)uart_data;
         String sensorTypeString;
         String valueString;
         parseJson(jsonString, sensorTypeString, valueString);
 
-        Serial.print
-        // sendDataToThinkSpeak(thingspeakEndpoint, apiKey, sensorTypeString, valueString);
+        Serial.println(jsonString);
+        sendDataToThinkSpeak(thingspeakEndpoint, apiKey, sensorTypeString, valueString);
     }
 }

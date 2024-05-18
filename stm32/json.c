@@ -1,21 +1,15 @@
 #include <stdint.h>
 #include <string.h>
 
-char *createJSONString(float value, uint16_t type) {
-    size_t jsonLength = 50;
+char *createJSONString(int value, uint16_t type) {
+	// Calculate the length of the JSON string
+	size_t jsonLength = 50; // Initial length for JSON formatting
 
-    char *jsonString = (char *)malloc((jsonLength + 1) * sizeof(char));
+	// Allocate memory for the JSON string
+	char *jsonString = (char *)malloc(jsonLength * sizeof(char));
 
-    if (jsonString == NULL) {
-        return NULL;
-    }
+	// Construct the JSON string
+	snprintf(jsonString, jsonLength, "{\"sensorType\":%d,\"value\":%d}", type, value);
 
-    int charsWritten = snprintf(jsonString, jsonLength + 1, "{\"sensorType\":%d,\"value\":%.2f}", type, value);
-
-    if (charsWritten < 0 || charsWritten > jsonLength) {
-        free(jsonString);
-        return NULL;
-    }
-
-    return jsonString;
+	return jsonString;
 }
