@@ -40,8 +40,29 @@ void parseJson(const char *jsonString, String &sensorTypeString, String &valueSt
         int value = doc["value"];
 
         // Convert integers to strings
-        sensorTypeString = String(sensorType + 1)// Plus 1 to match field names in thingspeak;
+        sensorTypeString = String(sensorType + 1); // Plus 1 to match field names in thingspeak;
         valueString = String(value);
+    }
+    else
+    {
+        Serial.println("Failed to parse JSON");
+    }
+}
+
+void parseDHTJson(const char *jsonString, String &tempValueString, String &humValueString)
+{
+    StaticJsonDocument<128> doc;
+
+    DeserializationError error = deserializeJson(doc, jsonString);
+
+    if (!error)
+    {
+        int tempValue = doc["temp_value"];
+        int humValue = doc["hum_value"];
+
+        // Convert integers to strings
+        tempValueString = String(tempValue);
+        humValueString = String(humValue);
     }
     else
     {
@@ -129,11 +150,25 @@ void loop()
     if (length > 0)
     {
         char *jsonString = (char *)uart_data;
+        Serial.println(jsonString);
+        /*
+        Uncomment this code if using 1 sensor type
         String sensorTypeString;
         String valueString;
         parseJson(jsonString, sensorTypeString, valueString);
 
-        Serial.println(jsonString);
+
         sendDataToThinkSpeak(thingspeakEndpoint, apiKey, sensorTypeString, valueString);
+        */
+
+        /*
+        Uncomment if DHT sensor
+        
+        String tempValueString;
+        String humValueString;
+        parseDHTJson(jsonString, tempValueString, humValueString);
+        sendDataToThinkSpeak(thingspeakEndpoint, apiKey, 3, tempValueString);
+        sendDataToThinkSpeak(thingspeakEndpoint, apiKey, 2, humValueString);
+        */
     }
 }
