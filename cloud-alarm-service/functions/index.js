@@ -32,18 +32,12 @@ class TwilioService {
     });
   }
 
-  async sendSensorData(to, sensorData) {
+  async sendSensorData(to) {
     let messageBody;
 
-    if (!sensorData.value) {
-      messageBody = `Sensor Alert - ${
-        Object.keys(SensorType)[sensorData.sensorType]
-      }`;
-    } else {
-      messageBody = `Sensor Alert - ${
-        Object.keys(SensorType)[sensorData.sensorType]
-      }\nValue: ${sensorData.value}`;
-    }
+    messageBody = `Sensor Alert - ${
+      Object.keys(SensorType)[sensorData.sensorType]
+    }`;
 
     await this.sendSMS(to, messageBody);
   }
@@ -64,18 +58,12 @@ class TelegramService {
     await this.client.sendMessage(to, body);
   }
 
-  async sendSensorData(to, sensorData) {
+  async sendSensorData(to) {
     let messageBody;
 
-    if (!sensorData.value) {
-      messageBody = `Sensor Alert - ${
-        Object.keys(SensorType)[sensorData.sensorType]
-      }`;
-    } else {
-      messageBody = `Sensor Alert - ${
-        Object.keys(SensorType)[sensorData.sensorType]
-      }\nValue: ${sensorData.value}`;
-    }
+    messageBody = `Sensor Alert - ${
+      Object.keys(SensorType)[sensorData.sensorType]
+    }`;
 
     await this.sendMessage(to, messageBody);
   }
@@ -84,9 +72,8 @@ class TelegramService {
 // Function logic
 // Activate twilio during actual deployment
 exports.sensorAlert = onRequest(async (request, response) => {
-  const { sensorType, value } = request.body;
+  const { sensorType } = request.body;
 
-  // value is optional
   if (!sensorType) {
     logger.error("Request is missing sensor type");
     response.status(400).send("Request is missing sensor type");
@@ -98,14 +85,12 @@ exports.sensorAlert = onRequest(async (request, response) => {
   const telegramService = new TelegramService();
 
   try {
-    // await twilioService.sendSensorData(process.env.TWILIO_RECIPIENT_PHONE_NUMBER, {
-    //     sensorType: sensorType,
-    //     value: value
-    // });
+    await twilioService.sendSensorData(process.env.TWILIO_RECIPIENT_PHONE_NUMBER, {
+        sensorType: sensorType,
+    });
 
     await telegramService.sendSensorData(process.env.TELEGRAM_CHAT_ID, {
       sensorType: sensorType,
-      value: value,
     });
 
     response.status(200).send("Sensor data received successfully");
