@@ -35,9 +35,15 @@ class TwilioService {
   async sendSensorData(to) {
     let messageBody;
 
-    messageBody = `Sensor Alert - ${
-      Object.keys(SensorType)[sensorData.sensorType]
-    }`;
+    if (sensorData.value == null) {
+      messageBody = `Sensor Alert - ${
+        Object.keys(SensorType)[sensorData.sensorType]
+      }`;
+    } else {
+      messageBody = `Sensor Alert - ${
+        Object.keys(SensorType)[sensorData.sensorType]
+      }\nValue: ${sensorData.value}`;
+    }
 
     await this.sendSMS(to, messageBody);
   }
@@ -61,9 +67,15 @@ class TelegramService {
   async sendSensorData(to) {
     let messageBody;
 
-    messageBody = `Sensor Alert - ${
-      Object.keys(SensorType)[sensorData.sensorType]
-    }`;
+    if (sensorData.value == null) {
+      messageBody = `Sensor Alert - ${
+        Object.keys(SensorType)[sensorData.sensorType]
+      }`;
+    } else {
+      messageBody = `Sensor Alert - ${
+        Object.keys(SensorType)[sensorData.sensorType]
+      }\nValue: ${sensorData.value}`;
+    }
 
     await this.sendMessage(to, messageBody);
   }
@@ -72,9 +84,11 @@ class TelegramService {
 // Function logic
 // Activate twilio during actual deployment
 exports.sensorAlert = onRequest(async (request, response) => {
-  const { sensorType } = request.body;
+  logger.info(request.body);
+  const { sensorType, value } = request.body;
 
-  if (!sensorType) {
+  // value is optional
+  if (sensorType == null) {
     logger.error("Request is missing sensor type");
     response.status(400).send("Request is missing sensor type");
     return;
