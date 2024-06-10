@@ -9,14 +9,16 @@
 #define TXD_PIN (GPIO_NUM_17)
 #define RXD_PIN (GPIO_NUM_16)
 #define UART_BAUD_RATE 115200
+#define SENSOR_THRESHOLD 400
 
-const char *ssid = "SKYFiber_MESH_3781";
-const char *password = "548209707";
+const char *ssid = "EEE192-429";
+const char *password = "EEE192_Room429";
 
 unsigned long timerDelay = 5000;
 unsigned long lastTime = 0;
 
 String thingspeakEndpoint = "https://api.thingspeak.com/update?api_key=";
+String alertEndpoint = "https://us-central1-cloud-alarm-service.cloudfunctions.net/sensorAlert";
 String apiKey = "CFBV2ROKPP58IHBL";
 
 /*
@@ -28,7 +30,16 @@ thingspeak fields
     SMOKE- 4
 */
 
-void parseJson(const char *jsonString, String &sensorTypeString, String &valueString)
+/*
+cloud alarm fields
+
+    VOLTAGE - 0
+    HUMIDITY - 1
+    TEMPERATURE - 2 
+    SMOKE - 3
+*/
+
+int parseJson(const char *jsonString, String &sensorTypeString, String &valueString)
 {
     StaticJsonDocument<128> doc;
 
@@ -42,14 +53,16 @@ void parseJson(const char *jsonString, String &sensorTypeString, String &valueSt
         // Convert integers to strings
         sensorTypeString = String(sensorType + 1); // Plus 1 to match field names in thingspeak;
         valueString = String(value);
+        return 1;
     }
     else
     {
         Serial.println("Failed to parse JSON");
+        return 0;
     }
 }
 
-void parseDHTJson(const char *jsonString, String &tempValueString, String &humValueString)
+int  parseDHTJson(const char *jsonString, String &tempValueString, String &humValueString)
 {
     StaticJsonDocument<128> doc;
 
@@ -63,10 +76,13 @@ void parseDHTJson(const char *jsonString, String &tempValueString, String &humVa
         // Convert integers to strings
         tempValueString = String(tempValue);
         humValueString = String(humValue);
+
+        return 1;
     }
     else
     {
         Serial.println("Failed to parse JSON");
+        return 0;
     }
 }
 
@@ -103,7 +119,7 @@ void initUart()
                                         uart_buffer_size, 10, &uart_queue, 0));
 }
 
-void sendDataToThinkSpeak(const String &endpoint, const String &apiKey, const String &sensorTypeString, const String &valueString)
+int sendDataToThinkSpeak(const String &endpoint, const String &apiKey, const String &sensorTypeString, const String &valueString)
 {
     if (WiFi.status() == WL_CONNECTED)
     {
@@ -111,6 +127,50 @@ void sendDataToThinkSpeak(const String &endpoint, const String &apiKey, const St
         String serverPath = endpoint + apiKey + "&field" + sensorTypeString + "=" + valueString;
         http.begin(serverPath.c_str());
         int httpResponseCode = http.GET();
+        if (httpResponseCode > 0)
+        {
+            Serial.print("HTTP Response code: ");
+            Serial.println(httpResponseCode);
+            String payload = http.getString();
+            return httpResponseCode;
+        }
+        else
+        {
+            Serial.print("Error code: ");
+            Serial.println(httpResponseCode);
+            return httpResponseCode;
+        }
+        http.end();
+    }
+    else
+    {
+        Serial.println("WiFi Disconnected");
+    }
+    return 0;
+}
+
+void sendDataToSensorAlert(const String &endpoint, const String &sensorTypeString, const String &valueString)
+{
+    if (WiFi.status() == WL_CONNECTED)
+    {
+        HTTPClient http;
+        http.begin(endpoint.c_str());
+        
+        // Specify content-type header
+        http.addHeader("Content-Type", "application/json");
+        
+        // Create JSON object
+        StaticJsonDocument<200> jsonDoc;
+        jsonDoc["sensorType"] = sensorTypeString;
+        jsonDoc["value"] = valueString;
+        
+        // Serialize JSON to string
+        String requestBody;
+        serializeJson(jsonDoc, requestBody);
+        
+        // Send POST request
+        int httpResponseCode = http.POST(requestBody);
+        
         if (httpResponseCode > 0)
         {
             Serial.print("HTTP Response code: ");
@@ -135,7 +195,7 @@ void setup()
 {
     Serial.begin(115200);
     initWiFi();
-    initUart()
+    initUart();
         Serial.print("RRSI: ");
     Serial.println(WiFi.RSSI());
 }
@@ -151,24 +211,62 @@ void loop()
     {
         char *jsonString = (char *)uart_data;
         Serial.println(jsonString);
-        /*
-        Uncomment this code if using 1 sensor type
+        /* Uncomment if Voltage/Smoke sensor
         String sensorTypeString;
         String valueString;
-        parseJson(jsonString, sensorTypeString, valueString);
+        int successful_parse = parseJson(jsonString, sensorTypeString, valueString);
+        
+        if(successful_parse) {
+          Serial.println(sensorTypeString);
+          Serial.println(valueString);
+          int result = sendDataToThinkSpeak(thingspeakEndpoint, apiKey, sensorTypeString, valueString);
+          // sendWifiStatus();
+          // Reset if error occurs
+          if (result != 200) {
+            ESP.restart();
+          }
+
+          //Send to cloud function since alerts are limited
+          if (valueString.toInt() >= SENSOR_THRESHOLD) {
+            sendDataToSensorAlert(alertEndpoint, String(sensorTypeString.toInt() - 1), valueString);
+          }
+        }
 
 
-        sendDataToThinkSpeak(thingspeakEndpoint, apiKey, sensorTypeString, valueString);
         */
 
-        /*
-        Uncomment if DHT sensor
-        
+
+        /* Uncomment if Harold
+
+
         String tempValueString;
         String humValueString;
-        parseDHTJson(jsonString, tempValueString, humValueString);
-        sendDataToThinkSpeak(thingspeakEndpoint, apiKey, 3, tempValueString);
-        sendDataToThinkSpeak(thingspeakEndpoint, apiKey, 2, humValueString);
+        int successful_parse = parseDHTJson(jsonString, tempValueString, humValueString);
+        if(successful_parse) {
+          Serial.println(tempValueString);
+          Serial.println(humValueString);
+          int result_1 = sendDataToThinkSpeak(thingspeakEndpoint, apiKey, "3", tempValueString);
+          int result_2 = sendDataToThinkSpeak(thingspeakEndpoint, apiKey, "2", humValueString);
+          // sendWifiStatus();
+          // Reset if error occurs
+          if (result_1 != 200) {
+            ESP.restart();
+          }
+
+          if (result_2 != 200) {
+            ESP.restart();
+          }
+
+          //Send to cloud function since alerts are limited
+          // @ Harold, yes tama yung 2 and 1 na values dont worry
+          if (tempValueString.toInt() >= 500) { // change value as needed
+            sendDataToSensorAlert(alertEndpoint, "2", tempValueString);
+          }
+
+          if (humValueString.toInt() >= 500) { // change value as needed
+            sendDataToSensorAlert(alertEndpoint, "1", humValueString);
+          }
+        }
         */
     }
 }
