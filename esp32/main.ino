@@ -9,10 +9,10 @@
 #define TXD_PIN (GPIO_NUM_17)
 #define RXD_PIN (GPIO_NUM_16)
 #define UART_BAUD_RATE 115200
-#define SENSOR_THRESHOLD 400
+#define SENSOR_THRESHOLD 300
 
-const char *ssid = "EEE192-429";
-const char *password = "EEE192_Room429";
+const char *ssid = "";
+const char *password = "";
 
 unsigned long timerDelay = 5000;
 unsigned long lastTime = 0;
@@ -117,6 +117,7 @@ void initUart()
     // Install UART driver using an event queue here
     ESP_ERROR_CHECK(uart_driver_install(UART_NUM_2, uart_buffer_size,
                                         uart_buffer_size, 10, &uart_queue, 0));
+    Serial.println("UART2 Connected");
 }
 
 int sendDataToThinkSpeak(const String &endpoint, const String &apiKey, const String &sensorTypeString, const String &valueString)
@@ -196,13 +197,28 @@ void setup()
     Serial.begin(115200);
     initWiFi();
     initUart();
-        Serial.print("RRSI: ");
+
+    sendWifiStatus();
+    
+    Serial.print("RRSI: ");
     Serial.println(WiFi.RSSI());
+}
+
+void sendWifiStatus() {
+      const uart_port_t uart_num = UART_NUM_2;
+      if (WiFi.status() == WL_CONNECTED) {
+        uart_write_bytes_with_break(uart_num, "C",strlen("D"), 100);
+        Serial.println("WiFi Status: Connected");
+      } else {
+        uart_write_bytes_with_break(uart_num, "D",strlen("D"), 100);
+        Serial.println("WiFi Status: Disconnected");
+      }
 }
 
 void loop()
 {
     const uart_port_t uart_num = UART_NUM_2;
+    sendWifiStatus();
     uint8_t uart_data[128];
     int length = 0;
     ESP_ERROR_CHECK(uart_get_buffered_data_len(uart_num, (size_t *)&length));
@@ -211,30 +227,31 @@ void loop()
     {
         char *jsonString = (char *)uart_data;
         Serial.println(jsonString);
-        /* Uncomment if Voltage/Smoke sensor
         String sensorTypeString;
         String valueString;
         int successful_parse = parseJson(jsonString, sensorTypeString, valueString);
         
         if(successful_parse) {
-          Serial.println(sensorTypeString);
-          Serial.println(valueString);
+          Serial.println("Sensor Type: SMOKE");
+          Serial.println("Sensor Data: "+ valueString);
           int result = sendDataToThinkSpeak(thingspeakEndpoint, apiKey, sensorTypeString, valueString);
           // sendWifiStatus();
           // Reset if error occurs
           if (result != 200) {
             ESP.restart();
+            // Write data to UART, end with a break signal.
+            uart_write_bytes_with_break(uart_num, "D",strlen("D"), 100);
+            Serial.println("WiFi Status: Disconnected");
           }
+          uart_write_bytes_with_break(uart_num, "C",strlen("D"), 100);
+          Serial.println("WiFi Status: Connected");
 
           //Send to cloud function since alerts are limited
           if (valueString.toInt() >= SENSOR_THRESHOLD) {
+            Serial.println("Gas Detected");
             sendDataToSensorAlert(alertEndpoint, String(sensorTypeString.toInt() - 1), valueString);
           }
         }
-
-
-        */
-
 
         /* Uncomment if Harold
 
