@@ -238,24 +238,21 @@ void loop()
           // sendWifiStatus();
           // Reset if error occurs
           if (result != 200) {
-            ESP.restart();
             // Write data to UART, end with a break signal.
             uart_write_bytes_with_break(uart_num, "D",strlen("D"), 100);
             Serial.println("WiFi Status: Disconnected");
+            ESP.restart();
           }
           uart_write_bytes_with_break(uart_num, "C",strlen("D"), 100);
           Serial.println("WiFi Status: Connected");
 
           //Send to cloud function since alerts are limited
           if (valueString.toInt() >= SENSOR_THRESHOLD) {
-            Serial.println("Gas Detected");
             sendDataToSensorAlert(alertEndpoint, String(sensorTypeString.toInt() - 1), valueString);
           }
         }
 
-        /* Uncomment if Harold
-
-
+        /* Uncomment if DHTSensor
         String tempValueString;
         String humValueString;
         int successful_parse = parseDHTJson(jsonString, tempValueString, humValueString);
@@ -267,20 +264,27 @@ void loop()
           // sendWifiStatus();
           // Reset if error occurs
           if (result_1 != 200) {
+            uart_write_bytes_with_break(uart_num, "D",strlen("D"), 100);
+            Serial.println("WiFi Status: Disconnected");
             ESP.restart();
+
           }
 
           if (result_2 != 200) {
+            uart_write_bytes_with_break(uart_num, "D",strlen("D"), 100);
+            Serial.println("WiFi Status: Disconnected");
             ESP.restart();
           }
 
+          uart_write_bytes_with_break(uart_num, "C",strlen("D"), 100);
+          Serial.println("WiFi Status: Connected");
+
           //Send to cloud function since alerts are limited
-          // @ Harold, yes tama yung 2 and 1 na values dont worry
-          if (tempValueString.toInt() >= 500) { // change value as needed
+          if (tempValueString.toInt() >= SENSOR_THRESHOLD) { // change value as needed
             sendDataToSensorAlert(alertEndpoint, "2", tempValueString);
           }
 
-          if (humValueString.toInt() >= 500) { // change value as needed
+          if (humValueString.toInt() >= SENSOR_THRESHOLD) { // change value as needed
             sendDataToSensorAlert(alertEndpoint, "1", humValueString);
           }
         }
