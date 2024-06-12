@@ -130,4 +130,6 @@ bool usart6_tx_send(const char *buf, unsigned int len);
 bool usart2_tx_is_busy(void);
 bool usart6_tx_is_busy(void);
 
+bool getWifiStatus();
+
 #endif // EEE158_USART_HDR_
