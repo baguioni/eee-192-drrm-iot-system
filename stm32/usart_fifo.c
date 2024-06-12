@@ -630,3 +630,60 @@ bool usart6_tx_send(const char *buf, unsigned int len)
 	USART6->CR1 |= (1 << 7);
 	return true;
 }
+
+bool getWifiStatus()
+{
+	struct usart_rx_event usart_evt_6;
+
+	char			rxb_data_6[128];
+	unsigned int	rxb_idx_6  = 0;
+	unsigned int	rxb_size_6 = 0;
+
+	while(1)
+	{
+		do
+		{
+			if (!usart6_rx_get_event(&usart_evt_6))
+				// Nothing to do here
+				break;
+			else if (!usart_evt_6.valid)
+				break;
+
+			if (usart_evt_6.is_idle) {
+				rxb_size_6 = rxb_idx_6;
+				break;
+			} else if (!usart_evt_6.has_data) {
+				break;
+			}
+
+			// Store the data
+			if (rxb_idx_6 >= sizeof(rxb_data_6)) {
+				rxb_size_6 = rxb_idx_6;
+				break;
+			}
+			rxb_data_6[rxb_idx_6++] = usart_evt_6.c;
+			break;
+		} while(0);
+
+		if (rxb_size_6 > 0) // If the entered symbol is normal
+		{
+			usart2_tx_send(rxb_data_6, rxb_size_6);
+			for(int i = 0; i < rxb_size_6; i++)
+			{
+				if(rxb_data_6[i] == 'C')
+				{
+					rxb_size_6 = rxb_idx_6 = 0;
+					return true;
+
+				}
+
+				if(rxb_data_6[i] == 'D')
+				{
+					rxb_size_6 = rxb_idx_6 = 0;
+					return false;
+				}
+			}
+
+		}
+	}
+}
