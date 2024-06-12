@@ -95,7 +95,7 @@ exports.sensorAlert = onRequest(async (request, response) => {
   }
 
   logger.info("Received sensor data", { sensorType, value });
-  // const twilioService = new TwilioService();
+  const twilioService = new TwilioService();
   const telegramService = new TelegramService();
 
   try {
